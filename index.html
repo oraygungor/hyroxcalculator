@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HYROX Performans Simülatörü</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Inter fontunu ve karanlık modu varsayılan yap */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #111827; /* Tailwind gray-900 */
+            color: #e0e0e0;
+        }
+        :root {
+            color-scheme: dark;
+        }
+        /* Kaydırıcı (Slider) stilleri */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #374151; /* gray-700 */
+            border-radius: 5px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        /* Chrome/Safari için slider tutamacı */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #f59e0b; /* amber-500 */
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        input[type="range"]:active::-webkit-slider-thumb {
+            background: #d97706; /* amber-600 */
+        }
+        /* Firefox için slider tutamacı */
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #f59e0b; /* amber-500 */
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s;
+        }
+         input[type="range"]:active::-moz-range-thumb {
+            background: #d97706; /* amber-600 */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto flex justify-end mb-4">
+        <div class="flex rounded-md shadow-sm bg-gray-700">
+            <button id="lang-tr" onclick="switchLanguage('tr')" class="px-4 py-2 text-sm font-medium rounded-l-md focus:outline-none">
+                🇹🇷 TR
+            </button>
+            <button id="lang-en" onclick="switchLanguage('en')" class="px-4 py-2 text-sm font-medium rounded-r-md focus:outline-none">
+                🇬🇧 EN
+            </button>
+        </div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto">
+        <h1 data-key="header" class="text-3xl font-bold text-center text-amber-500 mb-6">HYROX Performans Simülatörü</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-gray-800 p-5 rounded-lg shadow-lg">
+                    <h2 data-key="running_header" class="text-2xl font-semibold mb-4 text-rose-400">🏃 Koşular</h2>
+                    
+                    <div class="flex flex-col sm:flex-row items-center gap-3 mb-5 p-3 bg-gray-700 rounded-lg">
+                        <label for="sync-pace-input" data-key="sync_label" class="text-sm font-medium text-gray-300 whitespace-nowrap">Tüm Koşuları Eşitle:</label>
+                        <input type="text" id="sync-pace-input" data-key="sync_placeholder" placeholder="DD:SS" class="w-full sm:w-28 bg-gray-600 text-white p-2 rounded border border-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500 text-center">
+                        <button onclick="syncPaces()" data-key="sync_button" class="w-full sm:flex-1 bg-rose-500 text-white p-2 rounded-md font-semibold hover:bg-rose-600 transition-colors duration-200">Eşitle</button>
+                    </div>
+
+                    <div id="running-sliders" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                        </div>
+                </div>
+
+                <div class="bg-gray-800 p-5 rounded-lg shadow-lg">
+                    <h2 data-key="workouts_header" class="text-2xl font-semibold mb-4 text-indigo-400">🏋️ İstasyonlar</h2>
+                    <div id="workout-sliders" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                        </div>
+                </div>
+
+                 <div class="bg-gray-800 p-5 rounded-lg shadow-lg">
+                    <h2 data-key="roxzone_header" class="text-2xl font-semibold mb-4 text-cyan-400">⏱️ Roxzone</h2>
+                    <div id="roxzone-sliders">
+                        </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1">
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg lg:sticky lg:top-6">
+                    <h2 data-key="results_header" class="text-2xl font-bold text-center mb-4">Genel Sonuçlar</h2>
+                    
+                    <div class="text-center mb-6">
+                        <div data-key="total_time_label" class="text-lg text-gray-400">Toplam Süre</div>
+                        <div id="total-time-display" class="text-6xl font-bold text-amber-500">01:17:06</div>
+                        <div id="total-percentile-display" class="text-xl font-medium text-amber-300">Genel: İlk %46.4</div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center bg-gray-700 p-3 rounded-md">
+                            <span data-key="total_run_label" class="font-medium text-rose-400">🏃 Toplam Koşu</span>
+                            <div class="text-right">
+                                <span id="total-running-time" class="text-lg font-bold">39:43</span>
+                                <span id="total-running-percentile" class="block text-sm text-gray-300">İlk %50.0</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center bg-gray-700 p-3 rounded-md">
+                            <span data-key="total_workout_label" class="font-medium text-indigo-400">🏋️ Toplam İstasyon</span>
+                            <div class="text-right">
+                                <span id="total-workout-time" class="text-lg font-bold">32:28</span>
+                                <span id="total-workout-percentile" class="block text-sm text-gray-300">İlk %60.0</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center bg-gray-700 p-3 rounded-md">
+                            <span data-key="total_roxzone_label" class="font-medium text-cyan-400">⏱️ Toplam Roxzone</span>
+                            <div class="text-right">
+                                <span id="total-roxzone-time" class="text-lg font-bold">04:55</span>
+                                <span id="total-roxzone-percentile" class="block text-sm text-gray-300">İlk %25.0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- DİL PAKETİ (TRANSLATIONS) ---
+        const translations = {
+            'tr': {
+                title: "HYROX Performans Simülatörü",
+                header: "HYROX Performans Simülatörü",
+                running_header: "🏃 Koşular",
+                sync_label: "Tüm Koşuları Eşitle:",
+                sync_placeholder: "DD:SS",
+                sync_button: "Eşitle",
+                workouts_header: "🏋️ İstasyonlar",
+                roxzone_header: "⏱️ Roxzone",
+                results_header: "Genel Sonuçlar",
+                total_time_label: "Toplam Süre",
+                total_run_label: "🏃 Toplam Koşu",
+                total_workout_label: "🏋️ Toplam İstasyon",
+                total_roxzone_label: "⏱️ Toplam Roxzone",
+                pct_prefix_overall: "Genel: İlk %",
+                pct_prefix_station: "(İlk %",
+                stations: {
+                    run1: "1. Koşu", run2: "2. Koşu", run3: "3. Koşu", run4: "4. Koşu",
+                    run5: "5. Koşu", run6: "6. Koşu", run7: "7. Koşu", run8: "8. Koşu",
+                    ws1: "1. SkiErg", ws2: "2. Sled Push", ws3: "3. Sled Pull", ws4: "4. Burpees",
+                    ws5: "5. Row", ws6: "6. Farmer's", ws7: "7. Lunges", ws8: "8. Wall Balls",
+                    roxzone: "Toplam Roxzone"
+                }
+            },
+            'en': {
+                title: "HYROX Performance Simulator",
+                header: "HYROX Performance Simulator",
+                running_header: "🏃 Runs",
+                sync_label: "Sync All Runs:",
+                sync_placeholder: "MM:SS",
+                sync_button: "Sync",
+                workouts_header: "🏋️ Workouts",
+                roxzone_header: "⏱️ Roxzone",
+                results_header: "Overall Results",
+                total_time_label: "Total Time",
+                total_run_label: "🏃 Total Run",
+                total_workout_label: "🏋️ Total Workout",
+                total_roxzone_label: "⏱️ Total Roxzone",
+                pct_prefix_overall: "Overall: Top %",
+                pct_prefix_station: "(Top %",
+                stations: {
+                    run1: "1. Run", run2: "2. Run", run3: "3. Run", run4: "4. Run",
+                    run5: "5. Run", run6: "6. Run", run7: "7. Run", run8: "8. Run",
+                    ws1: "1. SkiErg", ws2: "2. Sled Push", ws3: "3. Sled Pull", ws4: "4. Burpees",
+                    ws5: "5. Row", ws6: "6. Farmer's", ws7: "7. Lunges", ws8: "8. Wall Balls",
+                    roxzone: "Total Roxzone"
+                }
+            }
+        };
+
+        let currentLang = 'tr'; // Varsayılan dil
+
+        // --- VERİTABANI (Simülasyon) ---
+        // Etiketler (label) translations objesine taşındı.
+        const stationData = {
+            // Koşular
+            run1: { defaultTime: 270, p10: 220, p90: 360, min: 180, max: 420 },
+            run2: { defaultTime: 284, p10: 240, p90: 380, min: 200, max: 440 },
+            run3: { defaultTime: 305, p10: 250, p90: 400, min: 210, max: 480 },
+            run4: { defaultTime: 305, p10: 255, p90: 420, min: 210, max: 500 },
+            run5: { defaultTime: 308, p10: 260, p90: 440, min: 220, max: 520 },
+            run6: { defaultTime: 297, p10: 265, p90: 460, min: 220, max: 540 },
+            run7: { defaultTime: 297, p10: 270, p90: 480, min: 220, max: 560 },
+            run8: { defaultTime: 321, p10: 280, p90: 500, min: 230, max: 600 },
+            // İstasyonlar
+            ws1: { defaultTime: 265, p10: 210, p90: 360, min: 180, max: 420 },
+            ws2: { defaultTime: 124, p10: 110, p90: 240, min: 90, max: 300 },
+            ws3: { defaultTime: 262, p10: 200, p90: 360, min: 150, max: 420 },
+            ws4: { defaultTime: 267, p10: 240, p90: 420, min: 180, max: 480 },
+            ws5: { defaultTime: 275, p10: 220, p90: 360, min: 180, max: 420 },
+            ws6: { defaultTime: 120, p10: 90, p90: 180, min: 70, max: 240 },
+            ws7: { defaultTime: 270, p10: 210, p90: 420, min: 150, max: 480 },
+            ws8: { defaultTime: 365, p10: 270, p90: 480, min: 210, max: 600 },
+            // Roxzone
+            roxzone: { defaultTime: 295, p10: 240, p90: 540, min: 180, max: 600 },
+            // Toplamlar
+            totalRun: { p10: 2280, p90: 3300 },
+            totalWork: { p10: 1800, p90: 3000 },
+            totalRox: { p10: 240, p90: 540 },
+            totalAll: { p10: 3900, p90: 5700 }
+        };
+
+        // --- YARDIMCI FONKSİYONLAR ---
+        function parseDDSS(timeStr) {
+            if (!timeStr) return 0;
+            const parts = timeStr.split(':');
+            const minutes = parseInt(parts[0], 10) || 0;
+            const seconds = parseInt(parts[1], 10) || 0;
+            return (minutes * 60) + seconds;
+        }
+
+        function formatMMSS(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function formatHHMMSS(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function getPercentile(time, p10, p90) {
+            const percentile = 10 + ((time - p10) / (p90 - p10)) * 80;
+            if (percentile <= 1.0) return 1.0.toFixed(1);
+            if (percentile >= 99.9) return 99.9.toFixed(1);
+            return percentile.toFixed(1);
+        }
+
+        function getPercentileColor(pct) {
+            if (pct <= 10) return 'text-cyan-400';
+            if (pct <= 25) return 'text-green-400';
+            if (pct <= 50) return 'text-yellow-400';
+            if (pct <= 75) return 'text-orange-400';
+            return 'text-red-400';
+        }
+
+        // --- ANA FONKSİYONLAR ---
+        
+        /** DİL DEĞİŞTİRME ANA FONKSİYONU */
+        function setLanguage(lang) {
+            currentLang = lang; // Global dili ayarla
+            const langPack = translations[lang];
+
+            // Tüm 'data-key' etiketli elemanları bul ve çevir
+            document.querySelectorAll('[data-key]').forEach(el => {
+                const key = el.dataset.key;
+                const text = langPack[key] || langPack.stations[key]; // Anahtarı ana listede veya istasyon listesinde ara
+
+                if (text) {
+                    // Placeholder'ları çevir
+                    if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.placeholder) {
+                        el.placeholder = text;
+                    } else {
+                        // Diğer tüm metinleri çevir
+                        el.innerText = text;
+                    }
+                }
+            });
+            
+            // Buton stillerini ayarla
+            const trBtn = document.getElementById('lang-tr');
+            const enBtn = document.getElementById('lang-en');
+            
+            trBtn.classList.toggle('bg-amber-500', lang === 'tr');
+            trBtn.classList.toggle('text-gray-900', lang === 'tr');
+            trBtn.classList.toggle('bg-gray-600', lang === 'en');
+            trBtn.classList.toggle('hover:bg-gray-500', lang === 'en');
+            
+            enBtn.classList.toggle('bg-amber-500', lang === 'en');
+            enBtn.classList.toggle('text-gray-900', lang === 'en');
+            enBtn.classList.toggle('bg-gray-600', lang === 'tr');
+            enBtn.classList.toggle('hover:bg-gray-500', lang === 'tr');
+
+            // Sayfa başlığını çevir
+            document.title = langPack.title;
+
+            // Tüm dinamik metinleri (yüzdelikler gibi) yeni dile göre güncelle
+            updateCalculations();
+        }
+
+        /** Dil değiştirme butonu tetikleyicisi */
+        function switchLanguage(lang) {
+            localStorage.setItem('hyroxLang', lang); // Tercihi kaydet
+            setLanguage(lang);
+        }
+
+        /** Tüm koşu pace'lerini eşitler */
+        function syncPaces() {
+            const paceStr = document.getElementById('sync-pace-input').value;
+            const timeInSeconds = parseDDSS(paceStr);
+
+            if (timeInSeconds <= 0) return;
+
+            for (let i = 1; i <= 8; i++) {
+                const slider = document.getElementById(`run${i}`);
+                if (slider) {
+                    const min = parseInt(slider.min, 10);
+                    const max = parseInt(slider.max, 10);
+                    
+                    let newTime = timeInSeconds;
+                    if (newTime < min) newTime = min;
+                    if (newTime > max) newTime = max;
+
+                    slider.value = newTime;
+                }
+            }
+            updateCalculations();
+        }
+
+        /** Sayfa yüklendiğinde slider'ları oluşturur (SADECE YAPIYI) */
+        function createSliders() {
+            const runContainer = document.getElementById('running-sliders');
+            const workContainer = document.getElementById('workout-sliders');
+            const roxContainer = document.getElementById('roxzone-sliders');
+
+            for (const [key, data] of Object.entries(stationData)) {
+                if (key.startsWith('total')) continue; 
+
+                const sliderHTML = `
+                    <div class="slider-group" id="group-${key}">
+                        <div class="flex justify-between items-baseline mb-1">
+                            <label for="${key}" data-key="${key}" class="text-sm font-medium text-gray-300"></label>
+                            <div class="flex items-baseline space-x-2">
+                                <span id="${key}-time" class="text-lg font-bold">${formatMMSS(data.defaultTime)}</span>
+                                <span id="${key}-pct" class="text-xs font-medium w-20 text-right"></span>
+                            </div>
+                        </div>
+                        <input type="range" id="${key}" name="${key}" 
+                               min="${data.min}" max="${data.max}" value="${data.defaultTime}" step="1"
+                               oninput="updateCalculations()">
+                    </div>
+                `;
+
+                if (key.startsWith('run')) {
+                    runContainer.innerHTML += sliderHTML;
+                } else if (key.startsWith('ws')) {
+                    workContainer.innerHTML += sliderHTML;
+                } else if (key.startsWith('rox')) {
+                    roxContainer.innerHTML += sliderHTML;
+                }
+            }
+        }
+
+        /** Tüm hesaplamaları günceller (her slider değişiminde çağrılır) */
+        function updateCalculations() {
+            let totalSeconds = 0;
+            let totalRunning = 0;
+            let totalWorkout = 0;
+            let totalRoxzone = 0;
+
+            // Güncel dil paketini al
+            const langPack = translations[currentLang];
+
+            for (const key in stationData) {
+                if (key.startsWith('total')) continue;
+                
+                const slider = document.getElementById(key);
+                if (!slider) continue;
+
+                const timeInSeconds = parseInt(slider.value, 10);
+                const data = stationData[key];
+
+                document.getElementById(`${key}-time`).innerText = formatMMSS(timeInSeconds);
+
+                // Yüzdelik dilimi hesapla ve DİNAMİK OLARAK ÇEVİR
+                const pct = getPercentile(timeInSeconds, data.p10, data.p90);
+                const pctDisplay = document.getElementById(`${key}-pct`);
+                pctDisplay.innerText = `${langPack.pct_prefix_station}${pct})`; // Çevrilmiş öneki kullan
+                pctDisplay.className = `text-xs font-medium w-20 text-right ${getPercentileColor(pct)}`;
+
+                if (key.startsWith('run')) {
+                    totalRunning += timeInSeconds;
+                } else if (key.startsWith('ws')) {
+                    totalWorkout += timeInSeconds;
+                } else if (key.startsWith('rox')) {
+                    totalRoxzone += timeInSeconds;
+                }
+            }
+
+            totalSeconds = totalRunning + totalWorkout + totalRoxzone;
+
+            // --- GENEL SONUÇ KARTINI GÜNCELLE (DİNAMİK ÇEVİRİ İLE) ---
+            document.getElementById('total-running-time').innerText = formatMMSS(totalRunning);
+            const runPct = getPercentile(totalRunning, stationData.totalRun.p10, stationData.totalRun.p90);
+            const totalRunPctEl = document.getElementById('total-running-percentile');
+            totalRunPctEl.innerText = `${langPack.pct_prefix_overall}${runPct}`;
+            totalRunPctEl.className = `block text-sm ${getPercentileColor(runPct)}`;
+
+            document.getElementById('total-workout-time').innerText = formatMMSS(totalWorkout);
+            const workPct = getPercentile(totalWorkout, stationData.totalWork.p10, stationData.totalWork.p90);
+            const totalWorkPctEl = document.getElementById('total-workout-percentile');
+            totalWorkPctEl.innerText = `${langPack.pct_prefix_overall}${workPct}`;
+            totalWorkPctEl.className = `block text-sm ${getPercentileColor(workPct)}`;
+
+            document.getElementById('total-roxzone-time').innerText = formatMMSS(totalRoxzone);
+            const roxPct = getPercentile(totalRoxzone, stationData.totalRox.p10, stationData.totalRox.p90);
+            const totalRoxPctEl = document.getElementById('total-roxzone-percentile');
+            totalRoxPctEl.innerText = `${langPack.pct_prefix_overall}${roxPct}`;
+            totalRoxPctEl.className = `block text-sm ${getPercentileColor(roxPct)}`;
+
+            document.getElementById('total-time-display').innerText = formatHHMMSS(totalSeconds);
+            const totalPct = getPercentile(totalSeconds, stationData.totalAll.p10, stationData.totalAll.p90);
+            const totalAllPctEl = document.getElementById('total-percentile-display');
+            totalAllPctEl.innerText = `${langPack.pct_prefix_overall}${totalPct}`;
+            totalAllPctEl.className = `text-xl font-medium ${getPercentileColor(totalPct)}`;
+        }
+
+        // --- SAYFA YÜKLEME ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedLang = localStorage.getItem('hyroxLang') || 'tr'; // Kayıtlı dili al veya TR yap
+            createSliders();        // Önce slider HTML yapısını oluştur
+            switchLanguage(savedLang); // Sonra dili ayarla (bu fonksiyon 'updateCalculations'ı zaten çağırıyor)
+        });
+
+    </script>
+</body>
+</html>
