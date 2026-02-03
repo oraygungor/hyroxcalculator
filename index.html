@@ -27,7 +27,7 @@
         
         /* Dark Mode: Derin Siyah/Lacivert */
         .dark body { background-color: #050810; color: #f1f5f9; }
-        /* Light Mode: Havacı Grisi / Mavimsi Gri (Aşırı parlak değil) */
+        /* Light Mode: Havacı Grisi / Mavimsi Gri */
         body { background-color: #cbd5e1; color: #0f172a; }
 
         input[type="range"] {
@@ -73,12 +73,6 @@
         
         .font-mono-custom {
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        }
-
-        /* Glassmorphism Etkisi */
-        .glass {
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
         }
     </style>
 </head>
@@ -383,7 +377,7 @@
                             <span data-key="${key}" class="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest"></span>
                             <div class="flex items-center gap-3">
                                 <span id="${key}-pct" class="text-[11px] font-black"></span>
-                                <span id="${key}-val" class="font-mono-custom text-sm font-black dark:text-white text-slate-900 tracking-widest bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">00:00</span>
+                                <span id="${key}-val" class="font-mono-custom text-base font-black dark:text-white text-slate-900 tracking-[0.1em]">00:00</span>
                             </div>
                         </div>
                         <div class="flex items-center gap-3">
