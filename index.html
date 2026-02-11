@@ -1,445 +1,416 @@
-<!DOCTYPE html>
-<html lang="tr" class="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HYROX SIM</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: '#fbbf24',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            letter-spacing: -0.01em;
-            transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s ease;
-        }
-        
-        /* Dark Mode: Derin Siyah/Lacivert */
-        .dark body { background-color: #050810; color: #f1f5f9; }
-        /* Light Mode: Havacı Grisi / Mavimsi Gri */
-        body { background-color: #cbd5e1; color: #0f172a; }
+import React, { useState, useEffect, useMemo } from 'react';
+import { ChevronDown, ChevronUp, RefreshCw, Printer, ArrowLeft, Globe } from 'lucide-react';
 
-        input[type="range"] {
-            -webkit-appearance: none;
-            height: 4px;
-            background: #94a3b8;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .dark input[type="range"] { background: #1e293b; }
+// --- Configuration & Data (Ported from HTML) ---
 
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 18px;
-            height: 18px;
-            background: #fbbf24;
-            border-radius: 50%;
-            border: 2px solid #000;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
+const STATION_DATA = {
+  run1: { default: 270, p10: 210, p90: 380, min: 180, max: 480 },
+  run2: { default: 280, p10: 215, p90: 390, min: 180, max: 480 },
+  run3: { default: 290, p10: 220, p90: 400, min: 180, max: 500 },
+  run4: { default: 300, p10: 225, p90: 410, min: 180, max: 500 },
+  run5: { default: 300, p10: 230, p90: 420, min: 180, max: 500 },
+  run6: { default: 310, p10: 235, p90: 430, min: 180, max: 520 },
+  run7: { default: 310, p10: 240, p90: 440, min: 180, max: 520 },
+  run8: { default: 330, p10: 260, p90: 480, min: 180, max: 600 },
+  ws1: { default: 265, p10: 230, p90: 290, min: 180, max: 360, label: 'SkiErg', badge: '01' },
+  ws2: { default: 170, p10: 120, p90: 280, min: 60, max: 420, label: 'Sled Push', badge: '02' },
+  ws3: { default: 280, p10: 200, p90: 460, min: 100, max: 600, label: 'Sled Pull', badge: '03' },
+  ws4: { default: 320, p10: 230, p90: 550, min: 120, max: 720, label: 'Burpees', badge: '04' },
+  ws5: { default: 285, p10: 250, p90: 320, min: 200, max: 380, label: 'Row', badge: '05' },
+  ws6: { default: 120, p10: 90, p90: 180, min: 60, max: 240, label: 'Farmers', badge: '06' },
+  ws7: { default: 290, p10: 200, p90: 520, min: 120, max: 720, label: 'Lunges', badge: '07' },
+  ws8: { default: 380, p10: 270, p90: 620, min: 180, max: 900, label: 'Wall Balls', badge: '08' },
+  roxzone: { default: 360, p10: 270, p90: 660, min: 120, max: 1200, label: 'Roxzone' },
+  // Totals for percentile calc
+  totalRun: { p10: 1800, p90: 3300 },
+  totalWork: { p10: 1800, p90: 3000 },
+  totalRox: { p10: 270, p90: 660 },
+  totalAll: { p10: 4200, p90: 6800 }
+};
 
-        .accordion-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out, opacity 0.3s ease;
-            opacity: 0;
-        }
+const TRANSLATIONS = {
+  tr: {
+    running_header: "KOŞULAR (1KM x 8)",
+    workouts_header: "İSTASYONLAR",
+    roxzone_header: "ROXZONE (GEÇİŞLER)",
+    sync_button: "EŞİTLE",
+    sync_placeholder: "04:30",
+    total_time_label: "TAHMİNİ BİTİŞ SÜRESİ",
+    total_run_label: "KOŞU TOPLAMI",
+    total_workout_label: "İSTASYON TOPLAMI",
+    total_roxzone_label: "ROXZONE TOPLAMI",
+    overall_prefix: "Genel: İlk",
+    percent_prefix: "%",
+  },
+  en: {
+    running_header: "RUNS (1KM x 8)",
+    workouts_header: "WORKOUTS",
+    roxzone_header: "ROXZONE",
+    sync_button: "SYNC",
+    sync_placeholder: "04:30",
+    total_time_label: "ESTIMATED FINISH TIME",
+    total_run_label: "RUN TOTAL",
+    total_workout_label: "STATIONS TOTAL",
+    total_roxzone_label: "ROXZONE TOTAL",
+    overall_prefix: "Overall: Top",
+    percent_prefix: "Top %",
+  }
+};
 
-        .accordion-content.open {
-            max-height: 2500px; 
-            opacity: 1;
-            margin-top: 1rem;
-        }
+// --- Helper Functions ---
 
-        .chevron { transition: transform 0.3s ease; }
-        .chevron.rotated { transform: rotate(180deg); }
+const formatMMSS = (sec) => {
+  if (isNaN(sec)) return "00:00";
+  return `${Math.floor(sec / 60).toString().padStart(2, '0')}:${(sec % 60).toString().padStart(2, '0')}`;
+};
 
-        .sticky-summary {
-            position: sticky;
-            top: 1.5rem;
-            z-index: 50;
-        }
-        
-        .font-mono-custom {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        }
-    </style>
-</head>
-<body class="antialiased pb-20">
+const formatHHMMSS = (sec) => {
+  if (isNaN(sec)) return "00:00:00";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
 
-    <div class="max-w-5xl mx-auto px-4 pt-8">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-8">
-            <div>
-                <h1 class="text-3xl font-black tracking-tighter italic dark:text-white text-slate-900">HYROX <span class="text-amber-500 not-italic">SIM</span></h1>
-                <p class="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-[0.3em] mt-1">Advanced Performance Lab</p>
-            </div>
-            
-            <div class="flex items-center gap-3">
-                <!-- Theme Toggle -->
-                <button onclick="toggleTheme()" class="p-3 rounded-2xl bg-slate-300 dark:bg-slate-900 border border-slate-400 dark:border-slate-800 transition-all hover:scale-105 active:scale-95 shadow-sm">
-                    <svg id="sun-icon" class="w-5 h-5 text-amber-500 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
-                    <svg id="moon-icon" class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-                </button>
+const calculatePct = (time, p10, p90) => {
+  let pct = 10 + ((time - p10) / (p90 - p10)) * 80;
+  return Math.max(0.1, Math.min(99.9, pct)).toFixed(1);
+};
 
-                <!-- Language Selector -->
-                <div class="flex bg-slate-300 dark:bg-slate-900 rounded-2xl p-1 text-xs font-bold border border-slate-400 dark:border-slate-800 shadow-sm">
-                    <button id="lang-tr" onclick="switchLanguage('tr')" class="px-4 py-2 rounded-xl transition-all">TR</button>
-                    <button id="lang-en" onclick="switchLanguage('en')" class="px-4 py-2 rounded-xl transition-all ml-1">EN</button>
+// --- Sub-Components ---
+
+const RangeControl = ({ label, value, min, max, onChange, pct, badge, isWorkout, langPrefix }) => {
+  return (
+    <div className="bg-[#111] border border-gray-800 rounded-lg p-4 flex flex-col gap-3 hover:border-[#ffe600] transition-colors group">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+            {isWorkout && badge && (
+                <div className="bg-[#ffe600] text-black text-xs font-bold w-6 h-6 flex items-center justify-center rounded-sm">
+                    {badge}
                 </div>
-            </div>
+            )}
+            <span className="text-sm font-bold text-gray-300 uppercase tracking-wider group-hover:text-white transition-colors">{label}</span>
         </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
-            <!-- Left: Inputs -->
-            <div class="lg:col-span-7 space-y-5">
-                
-                <!-- Runs Accordion -->
-                <section class="bg-slate-100 dark:bg-slate-900/40 border border-slate-300 dark:border-slate-800/60 rounded-3xl p-5 shadow-lg">
-                    <div class="flex items-center justify-between cursor-pointer group" onclick="toggleAccordion('run-section', 'run-chevron')">
-                        <h2 data-key="running_header" class="text-xs font-black uppercase tracking-[0.2em] text-rose-600 dark:text-rose-500 flex items-center gap-3">
-                            <span class="text-lg">🏃</span> 1KM RUNS
-                        </h2>
-                        <svg id="run-chevron" class="chevron w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
-                    
-                    <div id="run-section" class="accordion-content">
-                        <div class="flex gap-3 mb-5 bg-slate-200 dark:bg-slate-950/50 p-3 rounded-2xl items-center border border-slate-300 dark:border-slate-800/40 shadow-inner">
-                            <input type="text" id="sync-pace-input" placeholder="04:30" 
-                                   class="flex-1 bg-transparent text-center text-base py-1 rounded border-none focus:outline-none font-mono-custom dark:text-white text-slate-900 font-bold">
-                            <button onclick="syncPaces()" data-key="sync_button" class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg active:scale-95 uppercase tracking-wider">SYNC</button>
-                        </div>
-                        <div id="running-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <!-- JS Loaded -->
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Workouts Accordion -->
-                <section class="bg-slate-100 dark:bg-slate-900/40 border border-slate-300 dark:border-slate-800/60 rounded-3xl p-5 shadow-lg">
-                    <div class="flex items-center justify-between cursor-pointer group" onclick="toggleAccordion('work-section', 'work-chevron')">
-                        <h2 data-key="workouts_header" class="text-xs font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-500 flex items-center gap-3">
-                            <span class="text-lg">🏋️</span> WORKOUTS
-                        </h2>
-                        <svg id="work-chevron" class="chevron w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
-                    <div id="work-section" class="accordion-content">
-                        <div id="workout-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <!-- JS Loaded -->
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Roxzone Accordion -->
-                <section class="bg-slate-100 dark:bg-slate-900/40 border border-slate-300 dark:border-slate-800/60 rounded-3xl p-5 shadow-lg">
-                    <div class="flex items-center justify-between cursor-pointer group" onclick="toggleAccordion('rox-section', 'rox-chevron')">
-                        <h2 data-key="roxzone_header" class="text-xs font-black uppercase tracking-[0.2em] text-cyan-700 dark:text-cyan-500 flex items-center gap-3">
-                            <span class="text-lg">⏱️</span> ROXZONE
-                        </h2>
-                        <svg id="rox-chevron" class="chevron w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
-                    <div id="rox-section" class="accordion-content">
-                        <div id="roxzone-container">
-                            <!-- JS Loaded -->
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            <!-- Right: Results Panel -->
-            <div class="lg:col-span-5">
-                <div class="sticky-summary bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-amber-500/20 rounded-[2.5rem] p-8 shadow-2xl transition-colors">
-                    <div class="text-center mb-8">
-                        <span data-key="total_time_label" class="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em]">Tahmini Bitiş Süresi</span>
-                        <div id="total-time-display" class="font-mono-custom text-6xl md:text-7xl font-black text-slate-900 dark:text-white mt-4 tracking-tighter drop-shadow-sm">00:00:00</div>
-                        <div id="total-percentile-display" class="mt-6 inline-block px-8 py-3 rounded-2xl text-base font-black bg-amber-500 text-black shadow-xl shadow-amber-500/30 transition-transform hover:scale-105">
-                            Overall: Top 50.0%
-                        </div>
-                    </div>
-
-                    <div class="space-y-4">
-                        <div class="bg-slate-200 dark:bg-slate-900/50 p-5 rounded-3xl flex justify-between items-center border border-slate-300 dark:border-slate-800/50 shadow-sm transition-colors">
-                            <div>
-                                <div data-key="total_run_label" class="text-[10px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-[0.2em] mb-2">Run Total</div>
-                                <div id="total-running-time" class="font-mono-custom text-2xl font-black text-slate-900 dark:text-white leading-none">00:00</div>
-                            </div>
-                            <div id="total-running-percentile" class="text-sm font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 px-4 py-2 rounded-2xl border border-slate-300 dark:border-slate-800 shadow-inner">Top 50%</div>
-                        </div>
-                        <div class="bg-slate-200 dark:bg-slate-900/50 p-5 rounded-3xl flex justify-between items-center border border-slate-300 dark:border-slate-800/50 shadow-sm transition-colors">
-                            <div>
-                                <div data-key="total_workout_label" class="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-[0.2em] mb-2">Station Total</div>
-                                <div id="total-workout-time" class="font-mono-custom text-2xl font-black text-slate-900 dark:text-white leading-none">00:00</div>
-                            </div>
-                            <div id="total-workout-percentile" class="text-sm font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 px-4 py-2 rounded-2xl border border-slate-300 dark:border-slate-800 shadow-inner">Top 50%</div>
-                        </div>
-                        <div class="bg-slate-200 dark:bg-slate-900/50 p-5 rounded-3xl flex justify-between items-center border border-slate-300 dark:border-slate-800/50 shadow-sm transition-colors">
-                            <div>
-                                <div data-key="total_roxzone_label" class="text-[10px] font-black text-cyan-700 dark:text-cyan-500 uppercase tracking-[0.2em] mb-2">Roxzone Total</div>
-                                <div id="total-roxzone-time" class="font-mono-custom text-2xl font-black text-slate-900 dark:text-white leading-none">00:00</div>
-                            </div>
-                            <div id="total-roxzone-percentile" class="text-sm font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 px-4 py-2 rounded-2xl border border-slate-300 dark:border-slate-800 shadow-inner">Top 50%</div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800/50 text-center">
-                        <p class="text-[10px] text-slate-400 dark:text-slate-600 italic uppercase tracking-[0.3em] font-black">Verified by HYResult</p>
-                    </div>
-                </div>
-            </div>
-
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold text-[#ffe600]">{langPrefix}{pct}</span>
+          <span className="font-mono text-lg font-bold text-white">{formatMMSS(value)}</span>
         </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <button onClick={() => onChange(Math.max(min, value - 5))} className="w-8 h-8 flex items-center justify-center bg-black border border-gray-700 rounded text-gray-400 hover:text-[#ffe600] hover:border-[#ffe600] active:scale-95 transition-all">-</button>
+        <input 
+          type="range" 
+          min={min} 
+          max={max} 
+          value={value} 
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffe600]"
+        />
+        <button onClick={() => onChange(Math.min(max, value + 5))} className="w-8 h-8 flex items-center justify-center bg-black border border-gray-700 rounded text-gray-400 hover:text-[#ffe600] hover:border-[#ffe600] active:scale-95 transition-all">+</button>
+      </div>
     </div>
+  );
+};
 
-    <script>
-        const translations = {
-            'tr': {
-                running_header: "🏃 KOŞULAR (1KM x 8)",
-                sync_button: "EŞİTLE",
-                workouts_header: "🏋️ İSTASYONLAR",
-                roxzone_header: "⏱️ ROXZONE (GEÇİŞLER)",
-                total_time_label: "TAHMİNİ BİTİŞ SÜRESİ",
-                total_run_label: "KOŞU TOPLAMI",
-                total_workout_label: "İSTASYON TOPLAMI",
-                total_roxzone_label: "ROXZONE TOPLAMI",
-                overall_prefix: "Genel: İlk %",
-                stations: {
-                    run1: "Run 1", run2: "Run 2", run3: "Run 3", run4: "Run 4",
-                    run5: "Run 5", run6: "Run 6", run7: "Run 7", run8: "Run 8",
-                    ws1: "SkiErg", ws2: "Sled Push", ws3: "Sled Pull", ws4: "Burpees",
-                    ws5: "Row", ws6: "Farmers", ws7: "Lunges", ws8: "Wall Balls",
-                    roxzone: "Transitions"
-                }
-            },
-            'en': {
-                running_header: "🏃 RUNS (1KM x 8)",
-                sync_button: "SYNC",
-                workouts_header: "🏋️ WORKOUTS",
-                roxzone_header: "⏱️ ROXZONE",
-                total_time_label: "ESTIMATED FINISH TIME",
-                total_run_label: "RUN TOTAL",
-                total_workout_label: "STATIONS TOTAL",
-                total_roxzone_label: "ROXZONE TOTAL",
-                overall_prefix: "Overall: Top %",
-                stations: {
-                    run1: "Run 1", run2: "Run 2", run3: "Run 3", run4: "Run 4",
-                    run5: "Run 5", run6: "Run 6", run7: "Run 7", run8: "Run 8",
-                    ws1: "SkiErg", ws2: "Sled Push", ws3: "Sled Pull", ws4: "Burpees",
-                    ws5: "Row", ws6: "Farmers", ws7: "Lunges", ws8: "Wall Balls",
-                    roxzone: "Transitions"
-                }
-            }
-        };
-
-        const stationData = {
-            run1: { default: 270, p10: 210, p90: 380, min: 180, max: 480 },
-            run2: { default: 280, p10: 215, p90: 390, min: 180, max: 480 },
-            run3: { default: 290, p10: 220, p90: 400, min: 180, max: 500 },
-            run4: { default: 300, p10: 225, p90: 410, min: 180, max: 500 },
-            run5: { default: 300, p10: 230, p90: 420, min: 180, max: 500 },
-            run6: { default: 310, p10: 235, p90: 430, min: 180, max: 520 },
-            run7: { default: 310, p10: 240, p90: 440, min: 180, max: 520 },
-            run8: { default: 330, p10: 260, p90: 480, min: 180, max: 600 },
-            ws1: { default: 265, p10: 230, p90: 290, min: 180, max: 360 },
-            ws2: { default: 170, p10: 120, p90: 280, min: 60, max: 420 },
-            ws3: { default: 280, p10: 200, p90: 460, min: 100, max: 600 },
-            ws4: { default: 320, p10: 230, p90: 550, min: 120, max: 720 },
-            ws5: { default: 285, p10: 250, p90: 320, min: 200, max: 380 },
-            ws6: { default: 120, p10: 90,  p90: 180, min: 60, max: 240 },
-            ws7: { default: 290, p10: 200, p90: 520, min: 120, max: 720 },
-            ws8: { default: 380, p10: 270, p90: 620, min: 180, max: 900 },
-            roxzone: { default: 360, p10: 270, p90: 660, min: 120, max: 1200 },
-            totalRun: { p10: 1800, p90: 3300 },
-            totalWork: { p10: 1800, p90: 3000 },
-            totalRox: { p10: 270,  p90: 660 },
-            totalAll: { p10: 4200, p90: 6800 }
-        };
-
-        let currentLang = 'tr';
-
-        function toggleTheme() {
-            const html = document.documentElement;
-            const sunIcon = document.getElementById('sun-icon');
-            const moonIcon = document.getElementById('moon-icon');
+const Accordion = ({ title, isOpen, onToggle, children, icon }) => {
+    return (
+        <div className="border border-gray-800 rounded-xl bg-[#0a0a0a] overflow-hidden mb-4 transition-all hover:border-gray-700">
+            <div 
+                onClick={onToggle}
+                className="flex items-center justify-between p-5 cursor-pointer bg-[#0a0a0a] hover:bg-[#111] transition-colors"
+            >
+                <h2 className="text-sm font-black uppercase tracking-[0.2em] text-[#ffe600] flex items-center gap-3">
+                   <span className="text-lg">{icon}</span> {title}
+                </h2>
+                {isOpen ? <ChevronUp className="text-gray-500" /> : <ChevronDown className="text-gray-500" />}
+            </div>
             
-            if (html.classList.contains('dark')) {
-                html.classList.remove('dark');
-                localStorage.setItem('theme', 'light');
-                sunIcon.classList.add('hidden');
-                moonIcon.classList.remove('hidden');
-            } else {
-                html.classList.add('dark');
-                localStorage.setItem('theme', 'dark');
-                sunIcon.classList.remove('hidden');
-                moonIcon.classList.add('hidden');
+            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className="p-5 pt-0 border-t border-gray-900/50">
+                    {children}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Main App Component ---
+
+export default function App() {
+  const [lang, setLang] = useState('tr');
+  const [times, setTimes] = useState(() => {
+    // Check localStorage first
+    if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('hyrox_sim_data_v3');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error("Error parsing local storage", e);
             }
         }
+    }
 
-        function toggleAccordion(id, chevronId) {
-            const el = document.getElementById(id);
-            const chevron = document.getElementById(chevronId);
-            el.classList.toggle('open');
-            chevron.classList.toggle('rotated');
+    // Initialize from STATION_DATA defaults
+    const initial = {};
+    Object.keys(STATION_DATA).forEach(key => {
+        if (!key.includes('total')) {
+            initial[key] = STATION_DATA[key].default;
         }
+    });
+    return initial;
+  });
+  
+  // Save to localStorage on change
+  useEffect(() => {
+      localStorage.setItem('hyrox_sim_data_v3', JSON.stringify(times));
+  }, [times]);
+  
+  // Accordion State
+  const [openSections, setOpenSections] = useState({ run: true, work: true, rox: true });
+  const [syncPaceInput, setSyncPaceInput] = useState("");
 
-        function formatMMSS(sec) {
-            return `${Math.floor(sec/60).toString().padStart(2, '0')}:${(sec%60).toString().padStart(2, '0')}`;
+  const t = TRANSLATIONS[lang];
+
+  // Helper to update specific time
+  const updateTime = (key, val) => {
+    setTimes(prev => ({ ...prev, [key]: val }));
+  };
+
+  // Sync Logic
+  const handleSync = () => {
+    if (!syncPaceInput) return;
+    const parts = syncPaceInput.split(':');
+    if (parts.length < 2) return;
+    const baseSeconds = parseInt(parts[0]) * 60 + (parseInt(parts[1]) || 0);
+
+    const newTimes = { ...times };
+    for (let i = 1; i <= 8; i++) {
+        // Logic from HTML: factor = 1 + (i-1)*0.012
+        const factor = 1 + (i - 1) * 0.012;
+        const key = `run${i}`;
+        if (STATION_DATA[key]) {
+             newTimes[key] = Math.round(baseSeconds * factor);
         }
+    }
+    setTimes(newTimes);
+  };
 
-        function formatHHMMSS(sec) {
-            const h = Math.floor(sec/3600);
-            const m = Math.floor((sec%3600)/60);
-            const s = sec%60;
-            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-        }
+  // Calculations
+  const calculations = useMemo(() => {
+    let runTotal = 0;
+    let workTotal = 0;
+    let roxTotal = times.roxzone || 0;
 
-        function calculatePct(time, p10, p90) {
-            let pct = 10 + ((time - p10) / (p90 - p10)) * 80;
-            return Math.max(0.1, Math.min(99.9, pct)).toFixed(1);
-        }
+    Object.keys(times).forEach(key => {
+        if (key.startsWith('run')) runTotal += times[key];
+        else if (key.startsWith('ws')) workTotal += times[key];
+    });
 
-        function getPctColor(pct) {
-            if (pct <= 20) return 'text-emerald-500';
-            if (pct <= 50) return 'text-amber-500';
-            return 'text-rose-500';
-        }
+    const totalAll = runTotal + workTotal + roxTotal;
 
-        function adjust(id, delta) {
-            const slider = document.getElementById(id);
-            slider.value = parseInt(slider.value) + delta;
-            update();
-        }
+    return {
+        runTotal,
+        workTotal,
+        roxTotal,
+        totalAll,
+        runPct: calculatePct(runTotal, STATION_DATA.totalRun.p10, STATION_DATA.totalRun.p90),
+        workPct: calculatePct(workTotal, STATION_DATA.totalWork.p10, STATION_DATA.totalWork.p90),
+        roxPct: calculatePct(roxTotal, STATION_DATA.totalRox.p10, STATION_DATA.totalRox.p90),
+        totalPct: calculatePct(totalAll, STATION_DATA.totalAll.p10, STATION_DATA.totalAll.p90)
+    };
+  }, [times]);
 
-        function update() {
-            let tr = 0, tw = 0, trx = 0;
-            const lp = translations[currentLang];
+  return (
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ffe600] selection:text-black">
+      
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        
+        {/* --- Header --- */}
+        <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6 border-b border-gray-800 pb-6">
+            <div className="text-center md:text-left">
+                <h1 className="text-4xl font-black italic tracking-tighter text-[#ffe600]">
+                    HYROX <span className="text-white not-italic font-normal">SIM</span>
+                </h1>
+                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-[0.4em] mt-1">Advanced Performance Lab</p>
+            </div>
 
-            for (const key in stationData) {
-                if (key.includes('total')) continue;
-                const el = document.getElementById(key);
-                if (!el) continue;
+            <div className="flex items-center gap-4">
+                 {/* Language Switcher */}
+                 <div className="flex bg-[#111] rounded-lg p-1 border border-gray-800">
+                    <button 
+                        onClick={() => setLang('tr')} 
+                        className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${lang === 'tr' ? 'bg-[#ffe600] text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        TR
+                    </button>
+                    <button 
+                        onClick={() => setLang('en')} 
+                        className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${lang === 'en' ? 'bg-[#ffe600] text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        EN
+                    </button>
+                 </div>
+                 
+                 <button className="p-2 bg-[#111] rounded-lg border border-gray-800 hover:border-[#ffe600] text-gray-400 hover:text-[#ffe600] transition-colors">
+                    <Printer size={18} />
+                 </button>
+            </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            {/* --- Left Column: Controls --- */}
+            <div className="lg:col-span-7 space-y-2">
                 
-                const val = parseInt(el.value);
-                const data = stationData[key];
-                
-                document.getElementById(`${key}-val`).innerText = formatMMSS(val);
-                const pct = calculatePct(val, data.p10, data.p90);
-                const pctEl = document.getElementById(`${key}-pct`);
-                pctEl.innerText = `${currentLang === 'tr' ? '%' : 'Top %'}${pct}`;
-                pctEl.className = `text-[11px] font-black ${getPctColor(pct)}`;
+                {/* 1. Runs Accordion */}
+                <Accordion 
+                    title={t.running_header} 
+                    icon="🏃"
+                    isOpen={openSections.run} 
+                    onToggle={() => setOpenSections(prev => ({...prev, run: !prev.run}))}
+                >
+                    {/* Sync Bar */}
+                    <div className="flex gap-3 mb-6 bg-[#111] p-3 rounded-lg border border-gray-800 items-center">
+                        <input 
+                            type="text" 
+                            placeholder={t.sync_placeholder}
+                            className="flex-1 bg-transparent text-center text-lg py-1 border-none focus:outline-none focus:ring-0 font-mono font-bold text-white placeholder-gray-600"
+                            value={syncPaceInput}
+                            onChange={(e) => setSyncPaceInput(e.target.value)}
+                        />
+                        <button 
+                            onClick={handleSync}
+                            className="bg-[#ffe600] hover:bg-yellow-400 text-black px-6 py-2 rounded-md text-xs font-black transition-all active:scale-95 uppercase tracking-wider flex items-center gap-2"
+                        >
+                            <RefreshCw size={14} className="stroke-[3]" /> {t.sync_button}
+                        </button>
+                    </div>
 
-                if (key.startsWith('run')) tr += val;
-                else if (key.startsWith('ws')) tw += val;
-                else trx += val;
-            }
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map(i => {
+                            const key = `run${i}`;
+                            const data = STATION_DATA[key];
+                            return (
+                                <RangeControl 
+                                    key={key}
+                                    label={`Run ${i}`}
+                                    value={times[key]}
+                                    min={data.min}
+                                    max={data.max}
+                                    onChange={(val) => updateTime(key, val)}
+                                    pct={calculatePct(times[key], data.p10, data.p90)}
+                                    langPrefix={t.percent_prefix}
+                                />
+                            );
+                        })}
+                    </div>
+                </Accordion>
 
-            const total = tr + tw + trx;
-            document.getElementById('total-time-display').innerText = formatHHMMSS(total);
-            
-            const overallPct = calculatePct(total, stationData.totalAll.p10, stationData.totalAll.p90);
-            document.getElementById('total-percentile-display').innerText = `${lp.overall_prefix}${overallPct}`;
-            
-            document.getElementById('total-running-time').innerText = formatMMSS(tr);
-            document.getElementById('total-running-percentile').innerText = `${currentLang === 'tr' ? '%' : 'Top %'}${calculatePct(tr, stationData.totalRun.p10, stationData.totalRun.p90)}`;
-            
-            document.getElementById('total-workout-time').innerText = formatMMSS(tw);
-            document.getElementById('total-workout-percentile').innerText = `${currentLang === 'tr' ? '%' : 'Top %'}${calculatePct(tw, stationData.totalWork.p10, stationData.totalWork.p90)}`;
-            
-            document.getElementById('total-roxzone-time').innerText = formatMMSS(trx);
-            document.getElementById('total-roxzone-percentile').innerText = `${currentLang === 'tr' ? '%' : 'Top %'}${calculatePct(trx, stationData.totalRox.p10, stationData.totalRox.p90)}`;
-        }
+                {/* 2. Workouts Accordion */}
+                <Accordion 
+                    title={t.workouts_header} 
+                    icon="🏋️"
+                    isOpen={openSections.work} 
+                    onToggle={() => setOpenSections(prev => ({...prev, work: !prev.work}))}
+                >
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        {['ws1', 'ws2', 'ws3', 'ws4', 'ws5', 'ws6', 'ws7', 'ws8'].map(key => {
+                            const data = STATION_DATA[key];
+                            return (
+                                <RangeControl 
+                                    key={key}
+                                    label={data.label}
+                                    badge={data.badge}
+                                    isWorkout={true}
+                                    value={times[key]}
+                                    min={data.min}
+                                    max={data.max}
+                                    onChange={(val) => updateTime(key, val)}
+                                    pct={calculatePct(times[key], data.p10, data.p90)}
+                                    langPrefix={t.percent_prefix}
+                                />
+                            );
+                        })}
+                    </div>
+                </Accordion>
 
-        function createUI() {
-            const grids = {
-                run: document.getElementById('running-grid'),
-                ws: document.getElementById('workout-grid'),
-                rox: document.getElementById('roxzone-container')
-            };
+                {/* 3. Roxzone Accordion */}
+                <Accordion 
+                    title={t.roxzone_header} 
+                    icon="⏱️"
+                    isOpen={openSections.rox} 
+                    onToggle={() => setOpenSections(prev => ({...prev, rox: !prev.rox}))}
+                >
+                    <div className="mt-4">
+                        <RangeControl 
+                            label={STATION_DATA.roxzone.label}
+                            value={times.roxzone}
+                            min={STATION_DATA.roxzone.min}
+                            max={STATION_DATA.roxzone.max}
+                            onChange={(val) => updateTime('roxzone', val)}
+                            pct={calculatePct(times.roxzone, STATION_DATA.roxzone.p10, STATION_DATA.roxzone.p90)}
+                            langPrefix={t.percent_prefix}
+                        />
+                    </div>
+                </Accordion>
 
-            Object.entries(stationData).forEach(([key, data]) => {
-                if (key.includes('total')) return;
+            </div>
 
-                const type = key.startsWith('run') ? 'run' : (key.startsWith('ws') ? 'ws' : 'rox');
-                const html = `
-                    <div class="station-card p-4 rounded-2xl border border-slate-300 dark:border-slate-800/40 bg-white dark:bg-slate-900/60 shadow-sm transition-all hover:scale-[1.02]">
-                        <div class="flex justify-between items-center mb-3">
-                            <span data-key="${key}" class="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest"></span>
-                            <div class="flex items-center gap-3">
-                                <span id="${key}-pct" class="text-[11px] font-black"></span>
-                                <span id="${key}-val" class="font-mono-custom text-base font-black dark:text-white text-slate-900 tracking-[0.1em]">00:00</span>
-                            </div>
+            {/* --- Right Column: Summary Panel --- */}
+            <div className="lg:col-span-5 relative">
+                <div className="sticky top-8 bg-[#111] border-2 border-[#ffe600] rounded-3xl p-8 shadow-2xl">
+                    
+                    <div className="text-center mb-10">
+                        <span className="text-xs font-black text-gray-500 uppercase tracking-[0.3em]">{t.total_time_label}</span>
+                        <div className="font-mono text-7xl font-black text-white mt-4 tracking-tighter drop-shadow-lg">
+                            {formatHHMMSS(calculations.totalAll)}
                         </div>
-                        <div class="flex items-center gap-3">
-                            <button onclick="adjust('${key}', -5)" class="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-slate-900 rounded-xl text-lg font-black active:scale-90 transition-transform border border-slate-200 dark:border-slate-800 shadow-sm hover:text-amber-500">-</button>
-                            <input type="range" id="${key}" min="${data.min}" max="${data.max}" value="${data.default}" class="flex-1" oninput="update()">
-                            <button onclick="adjust('${key}', 5)" class="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-slate-900 rounded-xl text-lg font-black active:scale-90 transition-transform border border-slate-200 dark:border-slate-800 shadow-sm hover:text-amber-500">+</button>
+                        <div className="mt-6 inline-block px-8 py-3 rounded-full text-sm font-black bg-[#ffe600] text-black shadow-[0_0_20px_rgba(255,230,0,0.2)] transform hover:scale-105 transition-transform cursor-default">
+                            {t.overall_prefix} {calculations.totalPct}%
                         </div>
                     </div>
-                `;
-                grids[type].innerHTML += html;
-            });
-        }
 
-        function switchLanguage(lang) {
-            currentLang = lang;
-            const lp = translations[lang];
-            
-            document.querySelectorAll('[data-key]').forEach(el => {
-                const key = el.dataset.key;
-                el.innerText = lp[key] || lp.stations[key] || key;
-            });
+                    <div className="space-y-4">
+                        {/* Run Total Row */}
+                        <div className="bg-black/40 p-5 rounded-2xl flex justify-between items-center border border-gray-800">
+                            <div>
+                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">{t.total_run_label}</div>
+                                <div className="font-mono text-2xl font-bold text-white leading-none">{formatMMSS(calculations.runTotal)}</div>
+                            </div>
+                            <div className="text-xs font-black text-[#ffe600] bg-[#1a1a1a] px-3 py-1.5 rounded-lg border border-gray-800">
+                                {t.percent_prefix}{calculations.runPct}
+                            </div>
+                        </div>
 
-            const activeClass = 'bg-white dark:bg-slate-800 text-slate-950 dark:text-white shadow-md scale-105';
-            const inactiveClass = 'text-slate-500 hover:text-slate-800 dark:hover:text-white';
-            
-            document.getElementById('lang-tr').className = `px-5 py-2 rounded-xl transition-all ${lang === 'tr' ? activeClass : inactiveClass}`;
-            document.getElementById('lang-en').className = `px-5 py-2 rounded-xl transition-all ml-1 ${lang === 'en' ? activeClass : inactiveClass}`;
+                        {/* Workout Total Row */}
+                        <div className="bg-black/40 p-5 rounded-2xl flex justify-between items-center border border-gray-800">
+                            <div>
+                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">{t.total_workout_label}</div>
+                                <div className="font-mono text-2xl font-bold text-white leading-none">{formatMMSS(calculations.workTotal)}</div>
+                            </div>
+                            <div className="text-xs font-black text-[#ffe600] bg-[#1a1a1a] px-3 py-1.5 rounded-lg border border-gray-800">
+                                {t.percent_prefix}{calculations.workPct}
+                            </div>
+                        </div>
 
-            update();
-        }
+                        {/* Roxzone Total Row */}
+                        <div className="bg-black/40 p-5 rounded-2xl flex justify-between items-center border border-gray-800">
+                            <div>
+                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">{t.total_roxzone_label}</div>
+                                <div className="font-mono text-2xl font-bold text-white leading-none">{formatMMSS(calculations.roxTotal)}</div>
+                            </div>
+                            <div className="text-xs font-black text-[#ffe600] bg-[#1a1a1a] px-3 py-1.5 rounded-lg border border-gray-800">
+                                {t.percent_prefix}{calculations.roxPct}
+                            </div>
+                        </div>
+                    </div>
 
-        function syncPaces() {
-            const val = document.getElementById('sync-pace-input').value;
-            const parts = val.split(':');
-            if(parts.length < 2) return;
-            const sec = parseInt(parts[0]) * 60 + (parseInt(parts[1]) || 0);
-            
-            for(let i=1; i<=8; i++) {
-                const slider = document.getElementById(`run${i}`);
-                if(slider) {
-                    let factor = 1 + (i-1)*0.012;
-                    slider.value = Math.round(sec * factor);
-                }
-            }
-            update();
-        }
+                </div>
+            </div>
 
-        window.onload = () => {
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            if (savedTheme === 'light') {
-                document.documentElement.classList.remove('dark');
-                document.getElementById('sun-icon').classList.add('hidden');
-                document.getElementById('moon-icon').classList.remove('hidden');
-            } else {
-                document.documentElement.classList.add('dark');
-                document.getElementById('sun-icon').classList.remove('hidden');
-                document.getElementById('moon-icon').classList.add('hidden');
-            }
-
-            createUI();
-            switchLanguage('tr');
-        };
-    </script>
-</body>
-</html>
+        </div>
+      </div>
+    </div>
+  );
+}
